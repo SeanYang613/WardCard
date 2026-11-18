@@ -20,6 +20,16 @@ const wiktSpeech = (item) => (
     ? `${articleFor(item.gender)} ${item.lemma}`
     : item.lemma
 );
+// A card from an offline dictionary entry when AI cannot give the Chinese meaning: English stands in for it
+const dictionaryCard = (item) => ({
+  word: item.lemma,
+  article: item.part_of_speech === 'sustantivo' ? articleFor(item.gender) : '',
+  gender: item.gender || 'none',
+  part_of_speech: CARD_POS.has(item.part_of_speech) ? item.part_of_speech : 'frase',
+  translation: item.glosses.slice(0, 2).join('; '),
+  english_translation: item.glosses[0],
+  notes: '中文釋義待補：加入時沒有 AI，先放離線字典（Wiktionary）的英文釋義。'
+});
 // External dictionaries per language (server: dictionary.js externalLinks)
 const LINK_LABELS = {
   wordreference: 'WordReference', spanishdict: 'SpanishDict', rae: 'RAE',
@@ -142,9 +152,21 @@ export default function WordLookupPanel({ word, sentence = '', exampleZh = '', a
           notes: story.usage_zh
         };
       }
-      if (!card) card = await aiLookup(wiktionary[0]?.lemma || word); // translation is required
+      let draft = false;
+      if (!card) {
+        try {
+          card = await aiLookup(wiktionary[0]?.lemma || word); // translation is required
+        } catch (err) {
+          // No API key / AI down: German has no lexicon, so add the offline dictionary entry with its English
+          // meaning in place of the Chinese one (editable later) instead of not adding at all
+          const wikt = wiktionary.find(w => w.glosses?.length);
+          if (!wikt) throw err;
+          card = dictionaryCard(wikt);
+          draft = true;
+        }
+      }
       const res = await addToInbox(card);
-      setAddState(res.created ? 'added' : 'exists');
+      setAddState(res.created ? (draft ? 'added-draft' : 'added') : 'exists');
       notifyUpdate();
     } catch (err) {
       setError(err.message);
@@ -237,12 +259,17 @@ export default function WordLookupPanel({ word, sentence = '', exampleZh = '', a
           </button>
         ))}
 
-        {myCards.length === 0 && addState !== 'added' && addState !== 'exists' && (
+        {myCards.length === 0 && !['added', 'added-draft', 'exists'].includes(addState) && (
           <button className="btn btn-secondary btn-sm" onClick={handleAdd} disabled={addState === 'busy' || aiBusy}>
             <Plus size={14} /> {addState === 'busy' ? '加入中…' : '加入單字庫'}
           </button>
         )}
         {addState === 'added' && <span className="lookup-added"><Check size={14} /> 已加入暫存箱</span>}
+        {addState === 'added-draft' && (
+          <span className="lookup-added" title="沒有 Gemini API Key 或 AI 暫時無法使用，先用離線字典的英文釋義">
+            <Check size={14} /> 已加入暫存箱（中文釋義待補，先放英文）
+          </span>
+        )}
         {addState === 'exists' && <span className="lookup-added"><Check size={14} /> 已在單字庫</span>}
       </div>
 
