@@ -58,10 +58,13 @@ function entriesFor(spelling) {
   return (exact.length ? exact : rows).map(toCandidate);
 }
 
-function entryFor(lemma, pos) {
-  const row = getDict().prepare("SELECT word, pos, gender, glosses FROM entries WHERE word_norm = ? AND word = ? AND pos = ? AND glosses != '[]' LIMIT 1")
-    .get(normalizeWord(lemma), lemma, pos);
-  return row ? toCandidate(row) : null;
+// orden has a masculine and a feminine noun entry: with a card given, take the one matching its article / gender
+function entryFor(lemma, pos, card = null) {
+  const candidates = getDict().prepare("SELECT word, pos, gender, glosses FROM entries WHERE word_norm = ? AND word = ? AND pos = ? AND glosses != '[]' LIMIT 10")
+    .all(normalizeWord(lemma), lemma, pos).map(toCandidate);
+  if (!candidates.length) return null;
+  return (card && (candidates.find(c => c.article && c.article === card.article)
+    || candidates.find(c => c.gender && c.gender !== 'none' && c.gender === card.gender))) || candidates[0];
 }
 
 // "el agua", "el hacha": feminine nouns starting with a stressed a- take el
@@ -91,7 +94,7 @@ function auditCards(db, userId) {
   if (!dictionaryHasEntries()) return { available: false, summary: {}, labels: PROBLEM_LABELS, issues: [] };
   const cards = db.prepare(`
     SELECT id, word, article, gender, part_of_speech, translation, lifecycle_status, dict_lemma, dict_pos
-    FROM cards WHERE user_id = ? ORDER BY word COLLATE NOCASE
+    FROM cards WHERE user_id = ? AND lang = 'es' ORDER BY word COLLATE NOCASE
   `).all(userId);
   const dismissed = new Map(db.prepare('SELECT card_id, signature FROM card_audit_dismissed').all().map(r => [r.card_id, r.signature]));
 
@@ -114,7 +117,7 @@ function auditCards(db, userId) {
     let formOf = [];
 
     if (card.dict_lemma) {
-      linked = entryFor(card.dict_lemma, card.dict_pos);
+      linked = entryFor(card.dict_lemma, card.dict_pos, card);
       if (linked && !candidates.some(c => c.lemma === linked.lemma && c.pos === linked.pos)) candidates = [linked, ...candidates];
       if (linked) {
         expected = linked;
@@ -171,7 +174,8 @@ function applyFixes(db, userId, items) {
   if (!dictionaryHasEntries()) throw new Error('沒有離線字典，無法套用');
   const batchId = crypto.randomUUID();
   const getCard = db.prepare(`SELECT id, ${FIX_COLUMNS.join(', ')} FROM cards WHERE id = ? AND user_id = ?`);
-  const wordTaken = db.prepare('SELECT id FROM cards WHERE user_id = ? AND word = ? AND id != ?');
+  // A rename collides only with a card of the same word AND article (el orden / la orden are two cards)
+  const wordTaken = db.prepare("SELECT id FROM cards WHERE user_id = ? AND lang = 'es' AND word = ? AND COALESCE(article, '') = ? AND id != ?");
   const update = db.prepare(`UPDATE cards SET ${FIX_COLUMNS.map(c => `${c} = ?`).join(', ')}, updated_at = datetime('now', 'localtime') WHERE id = ? AND user_id = ?`);
   const log = db.prepare('INSERT INTO card_audit_log (batch_id, user_id, card_id, before, after) VALUES (?, ?, ?, ?, ?)');
   const undismiss = db.prepare('DELETE FROM card_audit_dismissed WHERE card_id = ?');
@@ -183,11 +187,11 @@ function applyFixes(db, userId, items) {
     for (const item of Array.isArray(items) ? items : []) {
       const card = getCard.get(Number(item.id), userId);
       if (!card) { skipped.push({ id: item.id, reason: '找不到這張卡' }); continue; }
-      const entry = entryFor(String(item.lemma || ''), String(item.pos || ''));
+      const entry = entryFor(String(item.lemma || ''), String(item.pos || ''), card);
       if (!entry) { skipped.push({ id: card.id, reason: '字典裡沒有這個條目' }); continue; }
       const after = { ...card, ...changesFor(card, entry), dict_lemma: entry.lemma, dict_pos: entry.pos };
       if (item.rename && entry.lemma !== card.word) {
-        if (wordTaken.get(userId, entry.lemma, card.id)) {
+        if (wordTaken.get(userId, entry.lemma, after.article || '', card.id)) {
           skipped.push({ id: card.id, reason: `單字庫已經有「${entry.lemma}」，沒有改名` });
         } else {
           after.word = entry.lemma;

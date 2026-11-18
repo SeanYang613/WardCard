@@ -20,24 +20,30 @@ const FIXTURE = [
   { word: 'año', pos: 'noun', lang_code: 'es', senses: [{ glosses: ['year'], tags: ['masculine'] }] },
   { word: 'ano', pos: 'noun', lang_code: 'es', senses: [{ glosses: ['anus'], tags: ['masculine'] }] },
   { word: 'artista', pos: 'noun', lang_code: 'es', head_templates: [{ expansion: 'artista m or f (plural artistas)' }], senses: [{ glosses: ['artist'] }] },
-  { word: 'por favor', pos: 'phrase', lang_code: 'es', senses: [{ glosses: ['please'] }] }
+  { word: 'por favor', pos: 'phrase', lang_code: 'es', senses: [{ glosses: ['please'] }] },
+  { word: 'orden', pos: 'noun', lang_code: 'es', head_templates: [{ expansion: 'orden f (plural órdenes)' }], senses: [{ glosses: ['order (command)'] }] },
+  { word: 'orden', pos: 'noun', lang_code: 'es', head_templates: [{ expansion: 'orden m (plural órdenes)' }], senses: [{ glosses: ['order (arrangement, sequence)'] }] }
 ];
 
 const CARDS_SCHEMA = `CREATE TABLE cards (
   id INTEGER PRIMARY KEY AUTOINCREMENT, word TEXT, article TEXT DEFAULT '', gender TEXT DEFAULT 'none',
-  part_of_speech TEXT DEFAULT 'sustantivo', english_translation TEXT DEFAULT '', dict_lemma TEXT DEFAULT NULL, dict_pos TEXT DEFAULT NULL)`;
+  part_of_speech TEXT DEFAULT 'sustantivo', english_translation TEXT DEFAULT '', dict_lemma TEXT DEFAULT NULL, dict_pos TEXT DEFAULT NULL,
+  lang TEXT NOT NULL DEFAULT 'es')`;
 
 let tmpDir;
+let dictDb;
 test.before(async () => {
   tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'card-dict-'));
   const input = path.join(tmpDir, 'es.jsonl');
   fs.writeFileSync(input, FIXTURE.map(e => JSON.stringify(e)).join('\n'));
   const out = path.join(tmpDir, 'es-en.sqlite');
   await build(input, out);
-  setDictionary(new DatabaseSync(out, { readOnly: true }));
+  dictDb = new DatabaseSync(out, { readOnly: true });
+  setDictionary(dictDb);
 });
 test.after(() => {
   setDictionary(null);
+  dictDb?.close(); // Windows cannot delete an open SQLite file
   fs.rmSync(tmpDir, { recursive: true, force: true });
 });
 
@@ -107,6 +113,13 @@ test('enrichCards takes gender, part of speech and English meaning from the dict
   assert.equal(keeps[1].gender, 'none', 'm or f (artista) keeps the card value');
   assert.equal(keeps[2].part_of_speech, 'frase');
   assert.equal(keeps[3].part_of_speech, 'frase');
+});
+
+test('el orden and la orden each take the dictionary entry of their own gender', () => {
+  const card = (id, article) => ({ id, word: 'orden', article, gender: 'none', part_of_speech: 'sustantivo', english_translation: '', dict_lemma: 'orden', dict_pos: 'noun' });
+  const [el, la] = enrichCards([card(1, 'el'), card(2, 'la')]);
+  assert.deepEqual([el.gender, el.english_translation], ['masculino', 'order (arrangement, sequence)']);
+  assert.deepEqual([la.gender, la.english_translation], ['femenino', 'order (command)']);
 });
 
 test('without a dictionary nothing is linked and cards come back unchanged', () => {
