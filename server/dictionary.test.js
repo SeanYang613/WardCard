@@ -36,6 +36,9 @@ const FIXTURE = [
     { glosses: ['first-person plural present indicative of hablar'], form_of: [{ word: 'hablar' }] }
   ] },
   { word: 'hablar', pos: 'verb', lang_code: 'es', senses: [{ glosses: ['to speak'] }] },
+  { word: 'orden', pos: 'noun', lang_code: 'es', head_templates: [{ expansion: 'orden m (plural órdenes)' }], senses: [{ glosses: ['order (sequence)'] }] },
+  { word: 'orden', pos: 'noun', lang_code: 'es', head_templates: [{ expansion: 'orden f (plural órdenes)' }], senses: [{ glosses: ['order (command)'] }] },
+  { word: 'el que', pos: 'pron', lang_code: 'es', senses: [{ glosses: ['the one that'] }] },
   { word: 'Madrid', pos: 'name', lang_code: 'es', senses: [{ glosses: ['Madrid'] }] },
   { word: 'house', pos: 'noun', lang_code: 'en', senses: [{ glosses: ['casa'] }] }
 ];
@@ -94,6 +97,17 @@ test('accent-insensitive, exact spelling first', () => {
   assert.deepEqual(lookupForm('año').map(i => i.lemma), ['año', 'ano']);
   assert.deepEqual(lookupForm('ano').map(i => i.lemma), ['ano', 'año']);
   assert.deepEqual(lookupForm('zzzz'), []);
+});
+
+test('a query with an article finds the noun, the article picks which homonym comes first', () => {
+  assert.deepEqual(lookupForm('la casa').map(i => [i.lemma, i.pos]), [['casa', 'noun'], ['casar', 'verb']]);
+  // el orden (sequence) and la orden (command) are two entries, not one
+  assert.deepEqual(lookupForm('orden').map(i => i.gender).sort(), ['femenino', 'masculino']);
+  assert.deepEqual(lookupForm('el orden').map(i => i.glosses[0]), ['order (sequence)', 'order (command)']);
+  assert.deepEqual(lookupForm('la orden').map(i => i.glosses[0]), ['order (command)', 'order (sequence)']);
+  // a phrase that starts with an article keeps its own entry
+  assert.deepEqual(lookupForm('el que').map(i => i.lemma), ['el que']);
+  assert.deepEqual(lookupForm('la zzzz'), []);
 });
 
 test('cardWordVariants expands gendered spellings', () => {
