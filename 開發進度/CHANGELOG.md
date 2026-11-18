@@ -58,6 +58,7 @@
   - **驗證與測試**：`server/scripts/lexicon/validate.js`（欄位、長度、來源、例句含該字、SVG 大小與安全性）；`server/lexicon.test.js`。撰寫規範見 `server/scripts/lexicon/WRITING.md`。
 
 ### Fixed
+- **查詞頁加入的單字沒有出現在單字庫 / 隨手暫存 (`DictionaryView.jsx`, `WordLookupPanel.jsx`)**：單字庫的卡片清單只在載入時抓一次，查詞頁按「加入單字庫」後不會通知它，新卡要重新整理頁面才看得到。現在加入成功（新建卡片）時會重新載入卡片與統計（`onCardAdded` → `fetchData`），切到單字庫就能在隨手暫存 (Inbox) 看到。
 - **德語查詞「加入單字庫」沒有 AI 時加不進去 (`client/src/components/WordLookupPanel.jsx`)**：加入卡片需要中文釋義，西語可以用 A1 字源圖鑑，德語只能靠 AI（`/api/dictionary/ai`）；沒有 Gemini API Key 或 AI 失敗時，按鈕會直接失敗。現在 AI 無法使用、但離線字典有這個字時，改用字典詞條加入暫存箱：冠詞與性別取自字典（das Haus 中性），中文釋義欄先放英文釋義，筆記註明「中文釋義待補」，畫面顯示「已加入暫存箱（中文釋義待補，先放英文）」。有 AI 時行為不變。
 - **查詞時連冠詞一起輸入查不到 (`server/dictionary.js` `lookupForm`)**：查「das Haus」、「la casa」會顯示「離線字典與單字庫都沒有這個字」，因為字典的詞條沒有冠詞。現在整串查不到、且開頭是冠詞（der / die / das / ein / eine、el / la / los / las / un / una）時，去掉冠詞再查名詞；「el que」這類本身就是詞條的片語照舊。冠詞也決定同形異義字的順序：「die See」先列海、「der See」先列湖，「la orden」先列命令。另外查詢結果原本以「原形 + 詞性」去重，der See / die See、el orden / la orden 只會出現一個，現在加上性別分開列出。測試：`server/dictionary.test.js`、`server/dictionaryGerman.test.js`。
 - **同形異義名詞顯示錯性別 (`server/cardDict.js`, `server/cardAudit.js`)**：orden 這類字典裡有陽性、陰性兩個名詞條目的字，卡片顯示與單字庫健檢原本都只拿第一個條目，el orden 會被顯示成陰性、英文釋義也是「命令」。現在依卡片的冠詞（其次是性別）挑對應的條目：el orden → 陽性「order (arrangement, sequence)」，la orden → 陰性「order (command)」。測試：`server/cardDict.test.js`。
