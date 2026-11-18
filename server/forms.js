@@ -115,27 +115,48 @@ function groupGermanVerb(forms) {
   return { kind: 'verb', nonfinite, tables };
 }
 
-// Noun declension: case down, singular / plural across ("Haus / Hause" when a cell has two forms)
-function groupGermanNoun(forms) {
+// Definite article per case: singular by gender (m / f / n), plural is the same for every gender
+const DE_DEFINITE = {
+  m: { nominative: 'der', genitive: 'des', dative: 'dem', accusative: 'den' },
+  f: { nominative: 'die', genitive: 'der', dative: 'der', accusative: 'die' },
+  n: { nominative: 'das', genitive: 'des', dative: 'dem', accusative: 'das' },
+  plural: { nominative: 'die', genitive: 'der', dative: 'den', accusative: 'die' }
+};
+
+// Noun declension: case down, singular / plural across ("Haus / Hause" when a cell has two forms).
+// `gender` (m / f / n) adds the singular article; without one (Eltern, der / die See unknown) only the plural gets it.
+function groupGermanNoun(forms, gender = '', formsOf = '') {
   const rows = DE_CASES.map(([key, label]) => {
     const cell = (number) => [...new Set(forms.filter(([, tags]) => {
       const t = tagSet(tags);
       return t.has(key) && t.has(number);
     }).map(([form]) => form))].join(' / ');
-    return { case: key, label, singular: cell('singular'), plural: cell('plural') };
+    const singular = cell('singular');
+    const plural = cell('plural');
+    return {
+      case: key,
+      label,
+      singular,
+      plural,
+      singularArticle: singular && DE_DEFINITE[gender] ? DE_DEFINITE[gender][key] : '',
+      pluralArticle: plural ? DE_DEFINITE.plural[key] : ''
+    };
   }).filter(r => r.singular || r.plural);
-  return rows.length ? { kind: 'declension', rows } : null;
+  if (!rows.length) return null;
+  return formsOf ? { kind: 'declension', rows, formsOf } : { kind: 'declension', rows };
 }
 
 /**
  * @param {string} pos wiktextract pos ('verb', 'noun', 'adj', …) @param {[string,string][]} forms stored forms
  * @param {string} lang learning language (es | de)
+ * @param {{ gender?: string, formsOf?: string }} [opts] German noun gender (m / f / n) for the declension articles;
+ *   formsOf names the noun the forms belong to when it is not the card's (der See for a die See card)
  */
-function groupForms(pos, forms, lang = 'es') {
+function groupForms(pos, forms, lang = 'es', { gender = '', formsOf = '' } = {}) {
   if (!Array.isArray(forms) || forms.length === 0) return null;
   if (lang === 'de') {
     if (pos === 'verb' && forms.some(([, tags]) => tagSet(tags).has('infinitive'))) return groupGermanVerb(forms);
-    if (pos === 'noun' && forms.some(([, tags]) => tagSet(tags).has('nominative'))) return groupGermanNoun(forms);
+    if (pos === 'noun' && forms.some(([, tags]) => tagSet(tags).has('nominative'))) return groupGermanNoun(forms, gender, formsOf);
   }
   if (pos === 'verb' && forms.some(([, tags]) => tagSet(tags).has('infinitive'))) return groupVerb(forms);
   const items = [];

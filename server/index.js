@@ -1244,9 +1244,15 @@ app.get('/api/version', authenticateToken, (req, res) => {
   }
 });
 
+// m / f / n of a German card, from its article first, then its gender column ('' when neither says)
+function germanCardGender(card) {
+  const article = String(card.article || splitArticle(card.word, '', card.lang).article || '').toLowerCase();
+  return { der: 'm', die: 'f', das: 'n' }[article] || { masculino: 'm', femenino: 'f', neutro: 'n' }[card.gender] || '';
+}
+
 // Everything the dictionary knows about one entry (IPA, forms, examples, etymology) plus the hand-written lexicon entry.
 // Loaded on demand (card detail, dictionary page) so card lists stay small.
-function dictionaryEntry(lemma, pos, lang = DEFAULT_LANG) {
+function dictionaryEntry(lemma, pos, lang = DEFAULT_LANG, { gender = '' } = {}) {
   let entryPos = pos;
   if (!entryPos) {
     // A lemma without a part of speech (dictionary page): use the first entry that has meanings of its own
@@ -1254,7 +1260,7 @@ function dictionaryEntry(lemma, pos, lang = DEFAULT_LANG) {
       .get(normalizeWord(lemma), lemma)?.pos || '';
   }
   const story = hasLexicon(lang) ? findLexiconEntry(getDict(), [lemma]) : null;
-  return { lemma, pos: entryPos, ...getEntryExtras(lemma, entryPos, lang), story };
+  return { lemma, pos: entryPos, ...getEntryExtras(lemma, entryPos, lang, { gender }), story };
 }
 
 app.get('/api/dictionary/entry', authenticateToken, (req, res) => {
@@ -1269,7 +1275,7 @@ app.get('/api/dictionary/entry', authenticateToken, (req, res) => {
 
 app.get('/api/cards/:id/dictionary', authenticateToken, (req, res) => {
   try {
-    const card = db.prepare('SELECT id, word, part_of_speech, dict_lemma, dict_pos, lang FROM cards WHERE id = ? AND user_id = ?').get(Number(req.params.id), req.user.userId);
+    const card = db.prepare('SELECT id, word, article, gender, part_of_speech, dict_lemma, dict_pos, lang FROM cards WHERE id = ? AND user_id = ?').get(Number(req.params.id), req.user.userId);
     if (!card) return res.status(404).json({ error: 'Card not found' });
     if (!hasLexicon(card.lang)) {
       // German: no stored link, look the card's word up directly (same part of speech first)
@@ -1279,7 +1285,8 @@ app.get('/api/cards/:id/dictionary', authenticateToken, (req, res) => {
         .get(normalizeWord(word), word, pos);
       const wanted = WIKT_POS[card.part_of_speech];
       const pos = wanted && exists(wanted) ? wanted : '';
-      const entry = dictionaryEntry(word, pos, lang);
+      // der See / die See: the card's own article picks the declension articles
+      const entry = dictionaryEntry(word, pos, lang, { gender: germanCardGender(card) });
       if (!entry.pos) return res.json({ linked: false, lemma: '', pos: '', ipa: '', forms: null, examples: null, etymology: null, story: null });
       return res.json({ linked: true, ...entry });
     }
