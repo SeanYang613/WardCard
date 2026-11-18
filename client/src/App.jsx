@@ -288,7 +288,7 @@ export default function App() {
             )}
 
             {activeTab === 'dictionary' && (
-              <DictionaryView />
+              <DictionaryView onCardsChanged={fetchData} />
             )}
 
             {activeTab === 'translate' && (

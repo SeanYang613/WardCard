@@ -5,7 +5,8 @@ import LookupHistory from './LookupHistory';
 import { forgetLookup } from '../utils/dictionary';
 import { getLangConfig } from '../utils/learnLang';
 
-export default function DictionaryView() {
+// onCardsChanged: reload the app's cards after a word is added, so the word list / Inbox shows it at once
+export default function DictionaryView({ onCardsChanged }) {
   const [input, setInput] = useState('');
   const [search, setSearch] = useState(null); // { q, n }: n remounts the panel when the same word is searched again
   const [historyVersion, setHistoryVersion] = useState(0);
@@ -49,7 +50,7 @@ export default function DictionaryView() {
 
       {search ? (
         <div className="surface-card dictionary-result">
-          <WordLookupPanel key={`${search.q}|${search.n}`} word={search.q} origin="dictionary" onUpdate={refreshHistory} />
+          <WordLookupPanel key={`${search.q}|${search.n}`} word={search.q} origin="dictionary" onUpdate={refreshHistory} onCardAdded={onCardsChanged} />
         </div>
       ) : (
         <div style={{ textAlign: 'center', color: 'var(--text-secondary)', fontSize: '0.9rem', padding: '24px 12px', lineHeight: 1.7 }}>

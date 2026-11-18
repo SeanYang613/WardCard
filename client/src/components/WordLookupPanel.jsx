@@ -47,9 +47,10 @@ const LINK_LABELS = {
  * @param {(analysis) => void} [onAnalyzed] - Lets the parent reuse one analysis for every word
  * @param {'dictionary'|'tap'} [origin] - Where the lookup came from, for the lookup history
  * @param {() => void} [onUpdate] - Called after the lookup, an AI lookup or adding a card (history may have changed)
+ * @param {() => void} [onCardAdded] - Called after a new card was created, so the word list can reload
  * @param {boolean} [compact] - Popover mode: fewer meanings, no external links
  */
-export default function WordLookupPanel({ word, sentence = '', exampleZh = '', analysis = null, onAnalyzed, origin = 'dictionary', onUpdate, compact = false }) {
+export default function WordLookupPanel({ word, sentence = '', exampleZh = '', analysis = null, onAnalyzed, origin = 'dictionary', onUpdate, onCardAdded, compact = false }) {
   const [result, setResult] = useState(null);
   const [error, setError] = useState('');
   const [aiBusy, setAiBusy] = useState(false);
@@ -168,6 +169,7 @@ export default function WordLookupPanel({ word, sentence = '', exampleZh = '', a
       const res = await addToInbox(card);
       setAddState(res.created ? (draft ? 'added-draft' : 'added') : 'exists');
       notifyUpdate();
+      if (res.created) onCardAdded?.();
     } catch (err) {
       setError(err.message);
       setAddState('idle');
