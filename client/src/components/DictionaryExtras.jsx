@@ -2,8 +2,14 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { Table2 } from 'lucide-react';
 import { getEntryDetails, getCardDictionary } from '../utils/dictionary';
 import SpeakButton from './SpeakButton';
-import FormsModal from './FormsModal';
+import FormsModal, { FormsOfNote } from './FormsModal';
 import { getLearnLang } from '../utils/learnLang';
+
+// German declension cell with its article: "Haus / Hause" + "dem" -> "dem Haus / dem Hause"
+function withArticle(cell, article) {
+  if (!cell) return '—';
+  return article ? cell.split(' / ').map(form => `${article} ${form}`).join(' / ') : cell;
+}
 
 function VerbForms({ forms }) {
   const moods = [];
@@ -64,11 +70,12 @@ function DetailSections({ data, showStory, onOpenForms }) {
       {forms && forms.kind === 'declension' && (
         <details className="dx-fold dx-section" open>
           <summary>變格（格位、單複數）</summary>
+          {forms.formsOf && <FormsOfNote formsOf={forms.formsOf} />}
           <table className="dx-table dx-declension">
             <thead><tr><th /><th scope="col">單數</th><th scope="col">複數</th></tr></thead>
             <tbody>
               {forms.rows.map(r => (
-                <tr key={r.case}><th scope="row">{r.label}</th><td>{r.singular || '—'}</td><td>{r.plural || '—'}</td></tr>
+                <tr key={r.case}><th scope="row">{r.label}</th><td lang="de">{withArticle(r.singular, r.singularArticle)}</td><td lang="de">{withArticle(r.plural, r.pluralArticle)}</td></tr>
               ))}
             </tbody>
           </table>

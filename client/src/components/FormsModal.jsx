@@ -66,17 +66,26 @@ function VerbTables({ forms }) {
 }
 
 // German nouns: case down, singular / plural across
-function DeclensionTable({ rows }) {
+// "Haus / Hause" + "dem" -> ["dem Haus", "dem Hause"]: learn (and hear) each form with its article
+const withArticle = (cell, article) => cell.split(' / ').map(form => (article ? `${article} ${form}` : form));
+
+// der See / die See share one set of dictionary forms: say which noun the table shows
+export function FormsOfNote({ formsOf }) {
+  return <div className="lookup-sub">字典只收了 <span lang="de">{formsOf}</span> 的變化形，下表是 <span lang="de">{formsOf}</span> 的變格。</div>;
+}
+
+function DeclensionTable({ rows, formsOf }) {
   return (
     <div className="fm-scroll">
+      {formsOf && <FormsOfNote formsOf={formsOf} />}
       <table className="fm-table">
         <thead><tr><th scope="col" className="fm-person-head">格位</th><th scope="col">單數</th><th scope="col">複數</th></tr></thead>
         <tbody>
           {rows.map(r => (
             <tr key={r.case}>
               <th scope="row">{r.label}</th>
-              <td>{r.singular ? r.singular.split(' / ').map(f => <FormCell key={f} form={f} />) : <FormCell form="" />}</td>
-              <td>{r.plural ? r.plural.split(' / ').map(f => <FormCell key={f} form={f} />) : <FormCell form="" />}</td>
+              <td>{r.singular ? withArticle(r.singular, r.singularArticle).map(f => <FormCell key={f} form={f} />) : <FormCell form="" />}</td>
+              <td>{r.plural ? withArticle(r.plural, r.pluralArticle).map(f => <FormCell key={f} form={f} />) : <FormCell form="" />}</td>
             </tr>
           ))}
         </tbody>
@@ -170,7 +179,7 @@ export default function FormsModal({ lemma, pos = '', onClose }) {
         {data && !forms && <div className="lookup-sub">字典裡沒有這個字的變化形資料。</div>}
         {forms?.kind === 'verb' && <VerbTables forms={forms} />}
         {forms?.kind === 'inflection' && <InflectionTable lemma={data.lemma || lemma} items={forms.items} />}
-        {forms?.kind === 'declension' && <DeclensionTable rows={forms.rows} />}
+        {forms?.kind === 'declension' && <DeclensionTable rows={forms.rows} formsOf={forms.formsOf} />}
         {forms && <div className="lookup-credit">點任一個形態可以聽發音 · 資料：Wiktionary · CC BY-SA</div>}
       </div>
     </div>

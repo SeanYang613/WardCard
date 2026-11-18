@@ -4332,6 +4332,13 @@ textarea {
   text-align: left;
   padding: 3px 8px 3px 0;
 }
+/* .dx-table gives every th 48%: here that left the plural column one letter wide */
+.dx-declension th {
+  width: auto;
+}
+.dx-declension tbody th {
+  white-space: nowrap;
+}
 /* Two forms in one cell (German dative "Haus / Hause") */
 .fm-table td .fm-form + .fm-form {
   margin-left: 8px;

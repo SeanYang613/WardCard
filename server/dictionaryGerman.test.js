@@ -83,6 +83,24 @@ test('nouns get a case × number table; adjectives only comparative / superlativ
   assert.deepEqual(gut, { kind: 'inflection', items: [{ label: '比較級', form: 'besser' }, { label: '最高級', form: 'am besten' }] });
 });
 
+test('the declension table carries the definite article of each case', () => {
+  const articles = (forms) => Object.fromEntries(forms.rows.map(r => [r.case, [r.singularArticle, r.pluralArticle]]));
+  // das Haus: the dictionary has one gender, so it is used
+  assert.deepEqual(articles(getEntryExtras('Haus', 'noun', 'de').forms), {
+    nominative: ['das', 'die'], genitive: ['des', 'der'], dative: ['dem', 'den'], accusative: ['das', 'die']
+  });
+  // the card's own gender wins (der See / die See share one dictionary lemma)
+  assert.deepEqual(articles(getEntryExtras('Haus', 'noun', 'de', { gender: 'f' }).forms).genitive, ['der', 'der']);
+
+  const { groupForms } = require('./forms');
+  const see = [['See', 'nominative singular'], ['Seen', 'definite nominative plural'], ['See', 'dative singular'], ['Seen', 'dative definite plural']];
+  assert.deepEqual(articles(groupForms('noun', see, 'de')), { nominative: ['', 'die'], dative: ['', 'den'] }, 'unknown gender: plural article only');
+  assert.deepEqual(articles(groupForms('noun', see, 'de', { gender: 'm' })).dative, ['dem', 'den']);
+  assert.equal(groupForms('noun', see, 'de', { formsOf: 'der See' }).formsOf, 'der See', 'the table says whose forms it shows');
+  const eltern = [['Eltern', 'definite nominative plural'], ['Eltern', 'dative definite plural']];
+  assert.deepEqual(articles(groupForms('noun', eltern, 'de', { gender: 'm' })).dative, ['', 'den'], 'no singular form, no singular article');
+});
+
 test('external links point to German dictionaries', () => {
   assert.deepEqual(Object.keys(externalLinks('Haus', 'de')), ['wiktionary', 'duden', 'dwds']);
   assert.ok(externalLinks('casa').rae);

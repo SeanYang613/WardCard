@@ -124,10 +124,32 @@ function optionalRowIn(lang, sql, ...params) {
 }
 
 /**
+ * Gender (m / f / n) for the articles of a German noun's declension table.
+ * The dictionary keeps the forms of the first entry only, so for der See / die See or das / der / die Band the
+ * table belongs to that first noun: it gets that noun's articles, and `formsOf` ("der See") says so whenever the
+ * card is the other noun or no card says which one is meant. Otherwise the card's gender (hint) or the dictionary's.
+ */
+function declensionGender(lemma, hint, lang) {
+  let rows = [];
+  try {
+    rows = getDict(lang)?.prepare("SELECT gender FROM entries WHERE word_norm = ? AND word = ? AND pos = 'noun' AND glosses != '[]' ORDER BY rowid")
+      .all(normalizeWord(lemma), lemma) || [];
+  } catch (_) { /* older dictionary file */ }
+  const valid = (g) => ['m', 'f', 'n'].includes(g);
+  const formsGender = rows[0]?.gender || '';
+  const several = new Set(rows.map(r => r.gender)).size > 1;
+  if (several && valid(formsGender) && hint !== formsGender) {
+    return { gender: formsGender, formsOf: `${{ m: 'der', f: 'die', n: 'das' }[formsGender]} ${lemma}` };
+  }
+  if (valid(hint)) return { gender: hint, formsOf: '' };
+  return { gender: !several && valid(formsGender) ? formsGender : '', formsOf: '' };
+}
+
+/**
  * IPA, inflected forms (grouped for display), example sentences and etymology of one lemma + part of speech.
  * Every part is null when the dictionary file is missing or was built before that part existed.
  */
-function getEntryExtras(lemma, pos, lang = 'es') {
+function getEntryExtras(lemma, pos, lang = 'es', { gender = '' } = {}) {
   if (!lemma) return { ipa: '', forms: null, examples: null, etymology: null };
   const optionalRow = (sql, ...params) => optionalRowIn(lang, sql, ...params);
   const ipa = optionalRow('SELECT ipa FROM entries WHERE word_norm = ? AND word = ? AND pos = ? AND ipa IS NOT NULL LIMIT 1', normalizeWord(lemma), lemma, pos)?.ipa
@@ -139,7 +161,7 @@ function getEntryExtras(lemma, pos, lang = 'es') {
   const chain = parseJson(ety?.chain, []).map(([lang, word, kind]) => ({ lang, lang_zh: langName(lang), word, kind }));
   return {
     ipa,
-    forms: groupForms(pos, forms, lang),
+    forms: groupForms(pos, forms, lang, lang === 'de' && pos === 'noun' ? declensionGender(lemma, gender, lang) : {}),
     examples: examples ? examples.map(([es, en]) => ({ es, en })) : null,
     etymology: ety ? { text: ety.text || '', chain } : null
   };
