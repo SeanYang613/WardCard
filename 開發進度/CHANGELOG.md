@@ -58,6 +58,7 @@
   - **驗證與測試**：`server/scripts/lexicon/validate.js`（欄位、長度、來源、例句含該字、SVG 大小與安全性）；`server/lexicon.test.js`。撰寫規範見 `server/scripts/lexicon/WRITING.md`。
 
 ### Fixed
+- **查詞時連冠詞一起輸入查不到 (`server/dictionary.js` `lookupForm`)**：查「das Haus」、「la casa」會顯示「離線字典與單字庫都沒有這個字」，因為字典的詞條沒有冠詞。現在整串查不到、且開頭是冠詞（der / die / das / ein / eine、el / la / los / las / un / una）時，去掉冠詞再查名詞；「el que」這類本身就是詞條的片語照舊。冠詞也決定同形異義字的順序：「die See」先列海、「der See」先列湖，「la orden」先列命令。另外查詢結果原本以「原形 + 詞性」去重，der See / die See、el orden / la orden 只會出現一個，現在加上性別分開列出。測試：`server/dictionary.test.js`、`server/dictionaryGerman.test.js`。
 - **同形異義名詞顯示錯性別 (`server/cardDict.js`, `server/cardAudit.js`)**：orden 這類字典裡有陽性、陰性兩個名詞條目的字，卡片顯示與單字庫健檢原本都只拿第一個條目，el orden 會被顯示成陰性、英文釋義也是「命令」。現在依卡片的冠詞（其次是性別）挑對應的條目：el orden → 陽性「order (arrangement, sequence)」，la orden → 陰性「order (command)」。測試：`server/cardDict.test.js`。
 - **Windows 上 `npm test` 有 4 個檔案的清理步驟失敗（`EBUSY`）**：`cardAudit` / `cardDict` / `dictionary` / `dictionaryExtras` 測試在刪除暫存資料夾前沒有關閉離線字典的 SQLite 連線，Windows 不能刪除開啟中的檔案；改為先 `setDictionary(null)` 並關閉連線。
 - **`POST /api/cards` 更新既有單字時回傳錯誤的 id**：upsert 撞到已存在的單字時，SQLite 的 `lastInsertRowid` 仍是上一筆，回傳的 id（以及新的字典連結）會指到別張卡；改為依單字查回正確的 id。

@@ -81,10 +81,27 @@ const toItem = (row, via = null) => ({
  * Offline Wiktionary lookup. "fui" -> [{ lemma: 'ir', via: '...' }, { lemma: 'ser', via: '...' }]
  * Exact spelling ranks above accent-insensitive matches (año before ano).
  */
+// Definite articles -> the dictionary gender of the noun they go with (plural die / los / las say nothing)
+const DICT_GENDER_BY_ARTICLE = { der: 'm', das: 'n', el: 'm', la: 'f', die: 'f' };
+const dictGender = (item) => ({ masculino: 'm', femenino: 'f', neutro: 'n' }[item.gender] || '');
+
 function lookupForm(query, lang = 'es') {
   const db = getDict(lang);
+  if (!db || !normalizeWord(query)) return [];
+  const items = lookupSpelling(db, query);
+  if (items.length) return items;
+  // "das Haus", "la casa": the dictionary has the noun without its article. Only tried when the whole text has
+  // no entry (phrases like "el que" stay as they are); the noun of the article's gender comes first (die See = sea).
+  const { word, article } = splitArticle(query, '', lang);
+  if (!article || !word || word === String(query).trim()) return [];
+  const gender = DICT_GENDER_BY_ARTICLE[article];
+  const nouns = lookupSpelling(db, word);
+  return gender ? nouns.sort((a, b) => (dictGender(b) === gender) - (dictGender(a) === gender)) : nouns;
+}
+
+function lookupSpelling(db, query) {
   const norm = normalizeWord(query);
-  if (!db || !norm) return [];
+  if (!norm) return [];
   const lower = String(query).trim().toLowerCase();
 
   const rows = db.prepare('SELECT word, pos, gender, glosses, form_of FROM entries WHERE word_norm = ? LIMIT 30').all(norm);
@@ -95,7 +112,7 @@ function lookupForm(query, lang = 'es') {
   const items = [];
   const seen = new Set();
   const push = (item) => {
-    const key = `${item.lemma}|${item.pos}`;
+    const key = `${item.lemma}|${item.pos}|${item.gender}`; // der See (lake) and die See (sea) are two entries
     if (seen.has(key)) return;
     seen.add(key);
     items.push(item);

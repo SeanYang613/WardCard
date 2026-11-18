@@ -47,6 +47,8 @@ test('lookup finds the lemma of an inflected form and maps neuter to neutro', ()
   const [haus] = lookupForm('haus', 'de'); // case-insensitive
   assert.deepEqual([haus.lemma, haus.gender, haus.part_of_speech], ['Haus', 'neutro', 'sustantivo']);
   assert.ok(haus.glosses[0].startsWith('house'));
+  // with its article, as written on a card
+  for (const q of ['das Haus', 'ein Haus']) assert.equal(lookupForm(q, 'de')[0]?.lemma, 'Haus', q);
   // The Spanish dictionary is a different file
   assert.deepEqual(lookupForm('ging'), []);
   assert.equal(dictionaryHasEntries('de'), true);
